@@ -23,7 +23,7 @@ jobs:
   build:
     name: build
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 90 # instead of 360 by default.
+    timeout-minutes: 720 # instead of 360 by default.
     strategy:
       fail-fast: false # don't fail fast as sometimes failures are operating system specific.
       matrix:
