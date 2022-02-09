@@ -1,0 +1,75 @@
+name: "build"
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/*.md"
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "**/*.md"
+
+  # Allows triggering the workflow manually in github actions page.
+  workflow_dispatch:
+
+defaults:
+  run: # use bash for all operating systems unless overridden.
+    shell: bash
+
+jobs:
+  build:
+    name: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90 # instead of 360 by default.
+    strategy:
+      fail-fast: false # don't fail fast as sometimes failures are operating system specific.
+      matrix:
+        os:
+          - "macos-11"
+          - "ubuntu-20.04"
+    steps:
+      - name: Cancel when duplicated
+        uses: styfle/cancel-workflow-action@0.4.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Checkout
+        uses: actions/checkout@v2 # shallow checkout.
+
+      - name: Download cache for Envoy
+        uses: actions/cache@v2
+        with:
+          path: ./.cache/envoy
+          key: ${{ runner.os }}-envoy-${{ hashFiles('Version.mk') }}
+
+      - name: Download cache for Tools
+        uses: actions/cache@v2
+        with:
+          path: ./.cache/tools
+          key: ${{ runner.os }}-tools-${{ hashFiles('Tools.mk') }}
+
+      - name: Download cache for Bazel
+        uses: actions/cache@v2
+        with:
+          path: ./.cache/bazel
+          key: ${{ runner.os }}-bazel-${{ hashFiles('Tools.mk', '.bazelversion', 'bazel/repositories.bzl') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.mode }}-bazel-
+
+      - name: Setup Go
+        uses: actions/setup-go@v2 # prepare Go. This is required for tools.
+        with:
+          go-version: 1.17.x
+
+      - name: Install macOS prerequisites
+        run: brew install cmake ninja coreutils # make is already installed.
+        if: runner.os == 'macOS'
+
+      - name: Install Ubuntu prerequisites
+        run: sudo apt-get update && sudo apt-get -y install cmake ninja-build # make is already installed.
+        if: runner.os == 'Linux'
+
+      - name: Build all
+        run: make build
