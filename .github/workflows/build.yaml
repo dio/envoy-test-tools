@@ -56,7 +56,7 @@ jobs:
         with:
           path: ./.cache/bazel
           key: ${{ runner.os }}-bazel-${{ hashFiles('Tools.mk', '.bazelversion', 'bazel/repositories.bzl') }}
-          restore-keys: ${{ runner.os }}-${{ matrix.mode }}-bazel-
+          restore-keys: ${{ runner.os }}-bazel-
 
       - name: Setup Go
         uses: actions/setup-go@v2 # prepare Go. This is required for tools.
