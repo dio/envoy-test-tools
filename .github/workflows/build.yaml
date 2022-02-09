@@ -71,5 +71,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get -y install cmake ninja-build # make is already installed.
         if: runner.os == 'Linux'
 
+      # Prepare clang tooling and config when it is required.
+      - name: Setup clang
+        if: runner.os == 'Linux'
+        # This downloads the required clang tooling when it is not downloaded yet.
+        run: |
+          make clang.bazelrc
+          echo "BAZEL_FLAGS=--config=clang" >> $GITHUB_ENV
+
       - name: Build all
         run: make build
