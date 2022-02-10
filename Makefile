@@ -1,6 +1,8 @@
 include Tools.mk
 include Version.mk
 
+VERSION ?= $(subst v,,$(ENVOY_VERSION))
+
 # Root dir returns absolute path of current directory. It has a trailing "/".
 root_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
@@ -38,7 +40,13 @@ config_load_check_tool := $(test_tools_bin_dir)/config_load_check/config_load_ch
 router_check_tool      := $(test_tools_bin_dir)/router_check/router_check_tool.stripped
 schema_validator_tool  := $(test_tools_bin_dir)/schema_validator/schema_validator_tool.stripped
 
+config_load_check_tool_archive := dist/config_load_check_tool_$(goos)_amd64_$(VERSION).tar.gz
+router_check_tool_archive := dist/router_check_tool_$(goos)_amd64_$(VERSION).tar.gz
+schema_validator_tool_archive := dist/schema_validator_tool_$(goos)_amd64_$(VERSION).tar.gz
+
 build: $(config_load_check_tool) $(router_check_tool) $(schema_validator_tool)
+
+dist: $(config_load_check_tool_archive) $(router_check_tool_archive) $(schema_validator_tool_archive)
 
 $(config_load_check_tool): $(envoy_dir)
 	$(call bazel-build,//test/tools/config_load_check:config_load_check_tool.stripped)
@@ -48,6 +56,15 @@ $(router_check_tool): $(envoy_dir)
 
 $(schema_validator_tool): $(envoy_dir)
 	$(call bazel-build,//test/tools/schema_validator:schema_validator_tool.stripped)
+
+dist/config_load_check_tool_$(goos)_amd64_$(VERSION).tar.gz: $(config_load_check_tool)
+	$(call create-archive,$(config_load_check_tool),$@)
+
+dist/router_check_tool_$(goos)_amd64_$(VERSION).tar.gz:
+	$(call create-archive,$(router_check_tool),$@)
+
+dist/schema_validator_tool_$(goos)_amd64_$(VERSION).tar.gz:
+	$(call create-archive,$(schema_validator_tool),$@)
 
 # This renders configuration template to build main binary using clang as the compiler.
 clang.bazelrc: bazel/clang.bazelrc.tmpl $(llvm-config) $(envsubst)
@@ -61,6 +78,11 @@ endef
 # To make sure the bazel cache directory is created.
 define bazel-dirs
 	mkdir -p $(BAZELISK_HOME) $(bazel_cache_dir)
+endef
+
+define create-archive
+	mkdir -p dist
+	@tar -C $(dir $1) -cpzf $@ $(notdir $1)
 endef
 
 # Catch all rules for Go-based tools.

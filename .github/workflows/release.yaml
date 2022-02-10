@@ -1,0 +1,100 @@
+name: "release"
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+**"  # For example: v0.5.0 v0.5.1-rc2
+
+defaults:
+  run: # use bash for all operating systems unless overridden.
+    shell: bash
+
+jobs:
+  build:
+    name: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 720 # instead of 360 by default.
+    strategy:
+      fail-fast: false # don't fail fast as sometimes failures are operating system specific.
+      matrix:
+        os:
+          - "macos-11"
+          - "ubuntu-20.04"
+    steps:
+      - name: Cancel when duplicated
+        uses: styfle/cancel-workflow-action@0.4.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Checkout
+        uses: actions/checkout@v2 # shallow checkout.
+
+      - name: Download cache for Envoy
+        uses: actions/cache@v2
+        with:
+          path: ./.cache/envoy
+          key: ${{ runner.os }}-envoy-${{ hashFiles('Version.mk') }}
+
+      - name: Download cache for Tools
+        uses: actions/cache@v2
+        with:
+          path: ./.cache/tools
+          key: ${{ runner.os }}-tools-${{ hashFiles('Tools.mk') }}
+
+      - name: Download cache for Bazel
+        uses: actions/cache@v2
+        with:
+          path: ./.cache/bazel
+          key: ${{ runner.os }}-bazel-${{ hashFiles('Tools.mk', '.bazelversion', 'bazel/repositories.bzl') }}
+          restore-keys: ${{ runner.os }}-bazel-
+
+      - name: Setup Go
+        uses: actions/setup-go@v2 # prepare Go. This is required for tools.
+        with:
+          go-version: 1.17.x
+
+      - name: Install macOS prerequisites
+        run: brew install cmake ninja coreutils # make is already installed.
+        if: runner.os == 'macOS'
+
+      - name: Install Ubuntu prerequisites
+        run: sudo apt-get update && sudo apt-get -y install cmake ninja-build # make is already installed.
+        if: runner.os == 'Linux'
+
+      # Prepare clang tooling and config when it is required.
+      - name: Setup clang
+        if: runner.os == 'Linux'
+        # This downloads the required clang tooling when it is not downloaded yet.
+        run: |
+          make clang.bazelrc
+          echo "BAZEL_FLAGS=--config=clang" >> $GITHUB_ENV
+
+      - name: Create artifacts # We strip the "v"-prefix from the current tag.
+        run: VERSION=${GITHUB_REF#refs/tags/v} make dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: dist-${{ runner.os }}
+          path: dist
+
+  release:
+    name: release
+    runs-on: ubuntu-20.04
+    needs: dist
+    timeout-minutes: 90 # instead of 360 by default.
+    steps:
+      - name: Cancel when duplicated
+        uses: styfle/cancel-workflow-action@0.4.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Download artifacts # get all of the uploaded artifacts
+        uses: actions/download-artifact@v2
+
+      - name: Release downloaded artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist-Linux/**/*.tar.gz
+            dist-macOS/**/*.tar.gz
