@@ -10,8 +10,8 @@ defaults:
     shell: bash
 
 jobs:
-  build:
-    name: build
+  dist:
+    name: dist
     runs-on: ${{ matrix.os }}
     timeout-minutes: 720 # instead of 360 by default.
     strategy:
